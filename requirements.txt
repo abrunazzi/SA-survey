@@ -1,0 +1,7 @@
+streamlit
+pandas
+openpyxl
+transformers
+torch
+keybert
+nltk
