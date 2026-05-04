@@ -12,7 +12,7 @@ from groq import Groq
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sentiment Analyzer AI", layout="wide")
 st.title("🦆 SENTIMENT ANALYSIS & SUMMARIZATION")
-st.markdown("Carica un file Excel e seleziona l'analisi desiderata. Quack!")
+st.markdown("Carica un file Excel e seleziona l'analisi desiderata!")
 
 # --- CARICAMENTO RISORSE (Cache) ---
 @st.cache_resource
