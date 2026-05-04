@@ -116,7 +116,7 @@ if uploaded_file:
     prompt_user = st.text_area(" Istruzione per Riassunto", "Riassumi i punti chiave:")
     if st.button("Genera Riassunto"):
         testi = df_input[colonna_target].astype(str).tolist()
-        with st.spinner("L'anatra robot sta scrivendo..."):
+        with st.spinner(" ..."):
             st.session_state.riassunto_ai = genera_riassunto_con_groq(testi, prompt_user)
             st.info("###  Report Generato")
             st.markdown(st.session_state.riassunto_ai)
