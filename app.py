@@ -138,7 +138,7 @@ if uploaded_file:
         st.download_button(
             label=" Scarica Report Excel Completo",
             data=output_excel.getvalue(),
-            file_name="report_anatra_totale.xlsx",
+            file_name="report__totale.xlsx",
             mime="application/vnd.ms-excel"
         )
 
@@ -146,6 +146,6 @@ if uploaded_file:
             st.download_button(
                 label="Scarica Riassunto AI (.txt)",
                 data=st.session_state.riassunto_ai,
-                file_name="riassunto_anatra.txt",
+                file_name="riassunto_.txt",
                 mime="text/plain"
             )
