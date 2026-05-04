@@ -34,11 +34,13 @@ def load_models():
 sentiment_pipeline, kw_model = load_models()
 
 # --- INIZIALIZZAZIONE CLIENT GROQ ---
-# Assicurati di avere GROQ_API_KEY nei Secrets di Streamlit
 if "GROQ_API_KEY" in st.secrets:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    # .strip() rimuove eventuali spazi bianchi o invii accidentali nella chiave
+    api_key_val = st.secrets["GROQ_API_KEY"].strip()
+    client = Groq(api_key=api_key_val)
 else:
-    st.error("⚠️ Chiave API di Groq non trovata nei Secrets!")
+    st.error("⚠️ Chiave API di Groq non trovata nei Secrets! L'analisi testuale non funzionerà.")
+    st.stop()
 
 # --- FUNZIONI DI ANALISI ---
 def run_sentiment(df, column):
@@ -75,13 +77,15 @@ def run_keybert(df, column):
     return pd.DataFrame(keywords, columns=['Concetto Chiave', 'Rilevanza'])
 
 def genera_riassunto_con_groq(lista_testi, istruzione_utente):
-    corpo_testo = "\n- ".join(lista_testi[:300]) # Limite per i token
+    corpo_testo = "\n- ".join(lista_testi[:300]) # Limite per i token di input
+    
+    # Utilizzo di llama-3.1-8b-instant per evitare l'errore di decommissioning
     risposta = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "Sei un esperto analista di dati. Rispondi sempre in italiano."},
+            {"role": "system", "content": "Sei un esperto analista di dati. Rispondi sempre in italiano in modo professionale."},
             {"role": "user", "content": f"{istruzione_utente}\n\nDATI:\n{corpo_testo}"}
         ],
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         temperature=0.3,
     )
     return risposta.choices[0].message.content
@@ -94,7 +98,7 @@ if uploaded_file:
     st.write("### Anteprima Dati")
     st.dataframe(df_input.head())
 
-    # CORREZIONE: Salviamo la colonna target in session_state per non perderla
+    # Salviamo la colonna target in session_state per garantirne la persistenza
     colonna_target = st.selectbox("Seleziona la colonna con i testi da analizzare", df_input.columns)
     st.session_state['colonna_target'] = colonna_target
 
@@ -107,7 +111,6 @@ if uploaded_file:
     # BOTTONE 1: SENTIMENT
     if col1.button("🔍 Avvia Sentiment Analysis"):
         with st.spinner("Analisi BERT in corso..."):
-            # Analizziamo i dati e salviamo il risultato nel session_state
             st.session_state.df_processed = run_sentiment(df_input.copy(), colonna_target)
             st.success("Analisi completata!")
             st.dataframe(st.session_state.df_processed)
@@ -136,9 +139,9 @@ if uploaded_file:
     prompt_personalizzato = st.text_area("Cosa vuoi chiedere all'IA?", 
                                         "Analizza queste risposte e riassumi i punti chiave su cosa piace e cosa no:")
 
-    if st.button("📝 Genera Riassunto con Llama 3"):
-        # Controlliamo che il file sia stato caricato e la colonna selezionata
-        if st.session_state['colonna_target'] in df_input.columns:
+    if st.button("📝 Genera Riassunto con Llama 3.1"):
+        # Controllo sicurezza session_state
+        if 'colonna_target' in st.session_state and st.session_state['colonna_target'] in df_input.columns:
             with st.spinner("L'IA di Groq sta elaborando..."):
                 try:
                     target = st.session_state['colonna_target']
@@ -149,7 +152,7 @@ if uploaded_file:
                 except Exception as e:
                     st.error(f"Errore durante la generazione: {e}")
         else:
-            st.warning("Assicurati di aver selezionato una colonna valida.")
+            st.warning("Assicurati di aver selezionato una colonna valida prima di generare il riassunto.")
 
     # --- DOWNLOAD DEI RISULTATI ---
     if st.session_state.df_processed is not None:
