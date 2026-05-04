@@ -11,8 +11,8 @@ from groq import Groq
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sentiment Analyzer AI", layout="wide")
-st.title("📊 SENTIMENT ANALYSIS & SUMMARIZATION")
-st.markdown("Carica un file Excel e seleziona l'analisi desiderata.")
+st.title("🦆 SENTIMENT ANALYSIS & SUMMARIZATION")
+st.markdown("Carica un file Excel e seleziona l'analisi desiderata. La SA è obbligatoria per gli step successivi. ")
 
 # --- DOWNLOAD RISORSE NLTK ---
 @st.cache_resource
@@ -63,7 +63,7 @@ def run_top_words(df, column):
             text_clean = re.sub(r'[^a-zA-Zàèìòù\s]', '', text.lower())
             words = [w for w in text_clean.split() if w not in stop_words and len(w) > 2]
             all_words.extend(words)
-        most_common = Counter(all_words).most_common(20)
+        most_common = Counter(all_words).most_common(40)
         top_words_string = ", ".join([f"{word} ({count})" for word, count in most_common])
         keyword_data.append({'Sentiment': label, 'Parole più frequenti': top_words_string})
     return pd.DataFrame(keyword_data)
@@ -72,7 +72,7 @@ def run_keybert(df, column):
     super_testo = " ".join(df[column].astype(str).tolist())
     keywords = kw_model.extract_keywords(
         super_testo, keyphrase_ngram_range=(2, 3), 
-        stop_words=list(stop_words), top_n=30, use_mmr=True, diversity=0.4
+        stop_words=list(stop_words), top_n=40, use_mmr=True, diversity=0.3
     )
     return pd.DataFrame(keywords, columns=['Concetto Chiave', 'Rilevanza'])
 
@@ -82,11 +82,11 @@ def genera_riassunto_con_groq(lista_testi, istruzione_utente):
     # Utilizzo di llama-3.1-8b-instant per evitare l'errore di decommissioning
     risposta = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "Sei un esperto analista di dati. Rispondi sempre in italiano in modo professionale."},
+            {"role": "system", "content": "Queste sono le risposte aperte di 200 persone diverse alla domanda ......"},
             {"role": "user", "content": f"{istruzione_utente}\n\nDATI:\n{corpo_testo}"}
         ],
         model="llama-3.1-8b-instant",
-        temperature=0.3,
+        temperature=0.4,
     )
     return risposta.choices[0].message.content
 
@@ -99,7 +99,7 @@ if uploaded_file:
     st.dataframe(df_input.head())
 
     # Salviamo la colonna target in session_state per garantirne la persistenza
-    colonna_target = st.selectbox("Seleziona la colonna con i testi da analizzare", df_input.columns)
+    colonna_target = st.selectbox("Seleziona la colonna con i testi da analizzare 🦆", df_input.columns)
     st.session_state['colonna_target'] = colonna_target
 
     st.write("---")
@@ -109,14 +109,14 @@ if uploaded_file:
         st.session_state.df_processed = None
 
     # BOTTONE 1: SENTIMENT
-    if col1.button("🔍 Avvia Sentiment Analysis"):
+    if col1.button(" Sentiment Analysis"):
         with st.spinner("Analisi BERT in corso..."):
             st.session_state.df_processed = run_sentiment(df_input.copy(), colonna_target)
             st.success("Analisi completata!")
             st.dataframe(st.session_state.df_processed)
 
     # BOTTONE 2: TOP WORDS
-    if col2.button("📈 Genera Top Words"):
+    if col2.button(" Top Words"):
         if st.session_state.df_processed is not None:
             target = st.session_state['colonna_target']
             report_words = run_top_words(st.session_state.df_processed, target)
@@ -126,7 +126,7 @@ if uploaded_file:
             st.error("Esegui prima la Sentiment Analysis!")
 
     # BOTTONE 3: KEYBERT
-    if col3.button("🧠 Estrai Concetti (KeyBERT)"):
+    if col3.button(" Concetti (KeyBERT)"):
         with st.spinner("Estrazione semantica..."):
             target = st.session_state['colonna_target']
             report_keybert = run_keybert(df_input, target)
@@ -135,14 +135,14 @@ if uploaded_file:
 
     # --- SEZIONE SUMMARIZATION (GROQ) ---
     st.divider()
-    st.subheader("🤖 Summarization Intelligente")
+    st.subheader("🦆 Summarization Intelligente")
     prompt_personalizzato = st.text_area("Cosa vuoi chiedere all'IA?", 
                                         "Analizza queste risposte e riassumi i punti chiave su cosa piace e cosa no:")
 
-    if st.button("📝 Genera Riassunto con Llama 3.1"):
+    if st.button(" Genera Riassunto con Llama 3.1"):
         # Controllo sicurezza session_state
         if 'colonna_target' in st.session_state and st.session_state['colonna_target'] in df_input.columns:
-            with st.spinner("L'IA di Groq sta elaborando..."):
+            with st.spinner("Groq sta elaborando..."):
                 try:
                     target = st.session_state['colonna_target']
                     testi_da_analizzare = df_input[target].astype(str).tolist()
@@ -161,7 +161,7 @@ if uploaded_file:
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             st.session_state.df_processed.to_excel(writer, index=False)
         st.download_button(
-            label="📥 Scarica Risultati Sentiment (Excel)",
+            label="🦆 Scarica Risultati Sentiment (Excel)",
             data=output.getvalue(),
             file_name="analisi_sentiment_completa.xlsx",
             mime="application/vnd.ms-excel"
