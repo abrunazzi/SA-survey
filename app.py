@@ -112,3 +112,66 @@ if uploaded_file:
             file_name="analisi_sentiment.xlsx",
             mime="application/vnd.ms-excel"
         )
+
+import streamlit as st
+import pandas as pd
+from llama_cpp import Llama
+import io
+
+# --- CARICAMENTO MODELLO LLM (Cache per non ricaricarlo ogni volta) ---
+@st.cache_resource
+def load_llm():
+    # Modifica il percorso con quello dove tieni il file .gguf sul tuo PC
+    # Se lo carichi su GitHub, dovrai usare un server con GPU
+    model_path = "MODELLI_AI/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+    return Llama(
+        model_path=model_path,
+        n_gpu_layers=-1, # Usa -1 se hai una GPU NVIDIA, altrimenti 0
+        n_ctx=4096
+    )
+
+# --- INTERFACCIA STREAMLIT ---
+st.header("🤖 Summarization Intelligente")
+
+# 1. Casella per personalizzare il Prompt
+# Usiamo i tag [INST] e [/INST] suggeriti dal modello Mistral
+default_prompt = "Le seguenti sono risposte a un sondaggio. Analizzale e riassumi in italiano cosa piace e cosa non piace agli utenti:"
+user_instruction = st.text_area("Inserisci l'istruzione per l'IA (all'interno di [INST]):", value=default_prompt)
+
+# 2. Bottone per avviare il riassunto
+if st.button("📝 Genera Report Testuale"):
+    if st.session_state.df_processed is not None: # Controlla se hai già caricato i dati
+        with st.spinner("L'IA sta leggendo e riassumendo... attendi..."):
+            
+            # Recuperiamo il testo dalla colonna target
+            # (Assumiamo che tu abbia salvato la colonna scelta nello stato)
+            testi = st.session_state.df_processed[st.session_state.colonna_scelta].dropna().astype(str).tolist()
+            testo_unito = "\n- ".join(testi[:200]) # Limite a 200 per non saturare la memoria
+
+            # Costruzione del Prompt Finale
+            full_prompt = f"<s>[INST] {user_instruction} \n{testo_unito} [/INST]</s>"
+
+            # Caricamento ed esecuzione
+            llm = load_llm()
+            output = llm(
+                full_prompt,
+                max_tokens=1000,
+                temperature=0.4,
+                echo=False
+            )
+            
+            riassunto = output['choices'][0]['text']
+
+            # Mostra il risultato
+            st.markdown("### 📄 Analisi Generata")
+            st.write(riassunto)
+
+            # Bottone per scaricare il report in TXT
+            st.download_button(
+                label="📥 Scarica Report (.txt)",
+                data=riassunto,
+                file_name="report_ai.txt",
+                mime="text/plain"
+            )
+    else:
+        st.error("Per favore, carica prima un file e avvia la Sentiment Analysis!")
