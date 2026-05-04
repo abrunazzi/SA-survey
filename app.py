@@ -138,7 +138,7 @@ if uploaded_file:
         st.download_button(
             label=" Scarica Report Excel Completo",
             data=output_excel.getvalue(),
-            file_name="report__totale.xlsx",
+            file_name="report_totale.xlsx",
             mime="application/vnd.ms-excel"
         )
 
