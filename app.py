@@ -33,7 +33,7 @@ sentiment_pipeline, kw_model = load_models()
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"].strip())
 else:
-    st.error("🦆 Chiave API di Groq mancante!")
+    st.error(" Chiave API di Groq mancante!")
     st.stop()
 
 # --- FUNZIONI DI ANALISI ---
@@ -82,43 +82,43 @@ if "report_words" not in st.session_state: st.session_state.report_words = None
 if "report_keybert" not in st.session_state: st.session_state.report_keybert = None
 if "riassunto_ai" not in st.session_state: st.session_state.riassunto_ai = None
 
-uploaded_file = st.file_uploader("🦆 Carica Excel", type=["xlsx"])
+uploaded_file = st.file_uploader(" Carica Excel", type=["xlsx"])
 
 if uploaded_file:
     df_input = pd.read_excel(uploaded_file)
-    st.write("### 🦆 Anteprima Dati")
+    st.write("----------------------------------------------------------------------------------------------------- Anteprima Dati")
     st.dataframe(df_input.head())
     
-    colonna_target = st.selectbox("🦆 Seleziona colonna", df_input.columns)
+    colonna_target = st.selectbox("Seleziona colonna", df_input.columns)
     st.session_state['colonna_target'] = colonna_target
 
     col1, col2, col3 = st.columns(3)
 
-    if col1.button("🦆 Sentiment Analysis"):
-        with st.spinner("Le anatre stanno analizzando..."):
+    if col1.button(" Sentiment Analysis"):
+        with st.spinner("Analizzando..."):
             st.session_state.df_processed = run_sentiment(df_input.copy(), colonna_target)
-            st.success("🦆 Analisi completata!")
+            st.success(" Analisi completata!")
             st.dataframe(st.session_state.df_processed)
 
-    if col2.button("🦆 Top Words"):
+    if col2.button("Top Words"):
         if st.session_state.df_processed is not None:
             st.session_state.report_words = run_top_words(st.session_state.df_processed, colonna_target)
             st.table(st.session_state.report_words)
-        else: st.error("🦆 Esegui prima il Sentiment!")
+        else: st.error(" Esegui prima il Sentiment!")
 
-    if col3.button("🦆 KeyBERT"):
+    if col3.button(" KeyBERT"):
         with st.spinner("Caccia ai concetti in corso..."):
             st.session_state.report_keybert = run_keybert(df_input, colonna_target)
             st.dataframe(st.session_state.report_keybert)
 
     st.divider()
     st.subheader("🦆 Summarization Intelligente")
-    prompt_user = st.text_area("🦆 Istruzione per Riassunto", "Riassumi i punti chiave:")
-    if st.button("🦆 Genera Riassunto"):
+    prompt_user = st.text_area(" Istruzione per Riassunto", "Riassumi i punti chiave:")
+    if st.button("Genera Riassunto"):
         testi = df_input[colonna_target].astype(str).tolist()
         with st.spinner("L'anatra robot sta scrivendo..."):
             st.session_state.riassunto_ai = genera_riassunto_con_groq(testi, prompt_user)
-            st.info("### 🦆 Report Generato")
+            st.info("###  Report Generato")
             st.markdown(st.session_state.riassunto_ai)
 
     # --- SEZIONE DOWNLOAD ---
@@ -136,7 +136,7 @@ if uploaded_file:
                 st.session_state.report_keybert.to_excel(writer, sheet_name='Concetti KeyBERT', index=False)
         
         st.download_button(
-            label="🦆 Scarica Report Excel Completo",
+            label=" Scarica Report Excel Completo",
             data=output_excel.getvalue(),
             file_name="report_anatra_totale.xlsx",
             mime="application/vnd.ms-excel"
@@ -144,7 +144,7 @@ if uploaded_file:
 
         if st.session_state.riassunto_ai:
             st.download_button(
-                label="🦆 Scarica Riassunto AI (.txt)",
+                label="Scarica Riassunto AI (.txt)",
                 data=st.session_state.riassunto_ai,
                 file_name="riassunto_anatra.txt",
                 mime="text/plain"
