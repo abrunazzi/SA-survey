@@ -95,7 +95,7 @@ def genera_riassunto_con_groq(lista_testi, istruzione_utente):
     corpo_testo = "\n- ".join(lista_testi[:300])
     risposta = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "Sei un esperto analista di dati. Rispondi in italiano."},
+            {"role": "system", "content": "Sei un analista di survey. Il tuo obiettivo è captare le opinioni dei rispondenti per avere degli insigths sulle domande di ricerca."},
             {"role": "user", "content": f"{istruzione_utente}\n\nDATI:\n{corpo_testo}"}
         ],
         model="llama-3.1-8b-instant",
