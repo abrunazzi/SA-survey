@@ -11,7 +11,7 @@ from groq import Groq
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sentiment Analyzer AI", layout="wide")
-st.title("🦆 SENTIMENT ANALYSIS & SUMMARIZATION")
+st.title(" SENTIMENT ANALYSIS & SUMMARIZATION")
 st.markdown("Carica un file Excel e seleziona l'analisi desiderata.")
 
 # --- CARICAMENTO RISORSE (Cache) ---
@@ -113,7 +113,7 @@ uploaded_file = st.file_uploader("Carica file Excel", type=["xlsx"])
 
 if uploaded_file:
     df_input = pd.read_excel(uploaded_file)
-    st.write("### 🦆 Anteprima Dati")
+    st.write("###  Anteprima Dati")
     st.dataframe(df_input.head())
     
     colonna_target = st.selectbox("Seleziona colonna testi", df_input.columns)
@@ -145,7 +145,7 @@ if uploaded_file:
                 st.error(f"Errore KeyBERT: {e}")
 
     st.divider()
-    st.subheader("🦆 Summarization Intelligente")
+    st.subheader(" Summarization Intelligente")
     prompt_user = st.text_area("Istruzione per il riassunto", "Analizza queste risposte e riassumi i punti chiave:")
     
     if st.button("Genera Riassunto"):
@@ -154,7 +154,7 @@ if uploaded_file:
             with st.spinner("Generazione report..."):
                 try:
                     st.session_state.riassunto_ai = genera_riassunto_con_groq(testi_puliti, prompt_user)
-                    st.info("### 🦆 Report Generato")
+                    st.info("### Report Generato")
                     st.markdown(st.session_state.riassunto_ai)
                 except Exception as e:
                     st.error(f"Errore Groq: {e}")
@@ -164,7 +164,7 @@ if uploaded_file:
     # --- SEZIONE DOWNLOAD ---
     if st.session_state.df_processed is not None or st.session_state.riassunto_ai is not None:
         st.divider()
-        st.subheader("🦆 Area Download")
+        st.subheader(" Area Download")
         
         output_excel = io.BytesIO()
         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
