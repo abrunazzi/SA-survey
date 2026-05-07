@@ -10,6 +10,8 @@ import io
 from groq import Groq
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
+from sklearn.cluster import KMeans
+from sentence_transformers import SentenceTransformer
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sentiment Analyzer AI", layout="wide")
@@ -24,12 +26,16 @@ def load_nltk():
 
 @st.cache_resource
 def load_models():
+    # Carichiamo BERT per il sentiment
     sentiment_model = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment", truncation=True)
+    # Carichiamo KeyBERT
     kw_model = KeyBERT(model='paraphrase-multilingual-MiniLM-L12-v2')
-    return sentiment_model, kw_model
+    # Carichiamo il modello per gli Embedding (base di BERTopic)
+    embed_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+    return sentiment_model, kw_model, embed_model
 
 stop_words = load_nltk()
-sentiment_pipeline, kw_model = load_models()
+sentiment_pipeline, kw_model, embed_model = load_models()
 
 # Inizializzazione Groq
 if "GROQ_API_KEY" in st.secrets:
@@ -90,17 +96,12 @@ def run_topic_modeling(df, column, n_topics=5):
     testi = pulisci_lista_testi(df, column)
     if len(testi) < 10:
         return pd.DataFrame([{"Avviso": "Dati insufficienti"}])
-    
     vectorizer = CountVectorizer(stop_words=list(stop_words), max_features=10000)
     data_vectorized = vectorizer.fit_transform(testi)
-    
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
     lda_output = lda.fit_transform(data_vectorized)
-    
-    # Identificazione del topic prevalente per ogni frase
     topic_assignments = lda_output.argmax(axis=1)
     counts = Counter(topic_assignments)
-    
     words = vectorizer.get_feature_names_out()
     topic_data = []
     for i, topic in enumerate(lda.components_):
@@ -110,8 +111,48 @@ def run_topic_modeling(df, column, n_topics=5):
             "Conteggio Frasi": counts.get(i, 0),
             "Parole Chiave": ", ".join(reversed(top_words))
         })
-    
     return pd.DataFrame(topic_data).sort_values(by="Conteggio Frasi", ascending=False)
+
+def run_semantic_clustering(df, column, n_clusters=5):
+    """Implementazione stile BERTopic: Embedding + Clustering + LLM Labeling"""
+    testi = pulisci_lista_testi(df, column)
+    if len(testi) < n_clusters:
+        return pd.DataFrame([{"Avviso": "Dati insufficienti per il clustering semantico"}])
+    
+    # 1. Creazione degli Embedding (Vettori)
+    embeddings = embed_model.encode(testi)
+    
+    # 2. Clustering con K-Means
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    cluster_labels = kmeans.fit_predict(embeddings)
+    
+    df_temp = pd.DataFrame({"testo": testi, "cluster": cluster_labels})
+    counts = Counter(cluster_labels)
+    
+    topic_data = []
+    for i in range(n_clusters):
+        # Prendiamo 10 esempi reali per farli leggere a Llama
+        campioni = df_temp[df_temp['cluster'] == i]['testo'].head(10).tolist()
+        corpo_campioni = "\n- ".join(campioni)
+        
+        # 3. Chiediamo a Llama di dare un nome al tema basandosi sul significato
+        risposta = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "Sei un analista. Guarda gli esempi e scrivi solo un titolo di 3-4 parole che riassuma il tema."},
+                {"role": "user", "content": f"Esempi di risposte:\n{corpo_campioni}"}
+            ],
+            model="llama-3.1-8b-instant",
+            temperature=0.1,
+        )
+        nome_tema = risposta.choices[0].message.content.strip()
+        
+        topic_data.append({
+            "Tema Semantico (BERTopic style)": nome_tema,
+            "Conteggio": counts.get(i, 0),
+            "Esempio reale": campioni[0]
+        })
+    
+    return pd.DataFrame(topic_data).sort_values(by="Conteggio", ascending=False)
 
 def genera_riassunto_con_groq(lista_testi, istruzione_utente):
     corpo_testo = "\n- ".join(lista_testi[:300])
@@ -130,6 +171,7 @@ if "df_processed" not in st.session_state: st.session_state.df_processed = None
 if "report_words" not in st.session_state: st.session_state.report_words = None
 if "report_keybert" not in st.session_state: st.session_state.report_keybert = None
 if "report_topics" not in st.session_state: st.session_state.report_topics = None
+if "report_semantic" not in st.session_state: st.session_state.report_semantic = None
 if "riassunto_ai" not in st.session_state: st.session_state.riassunto_ai = None
 
 uploaded_file = st.file_uploader("Carica file Excel", type=["xlsx"])
@@ -142,39 +184,37 @@ if uploaded_file:
     colonna_target = st.selectbox("Seleziona colonna testi", df_input.columns)
     st.session_state['colonna_target'] = colonna_target
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
-    if col1.button("Sentiment Analysis"):
-        with st.spinner("Analisi in corso..."):
+    if col1.button("Sentiment"):
+        with st.spinner("Analisi..."):
             try:
                 st.session_state.df_processed = run_sentiment(df_input, colonna_target)
-                st.success("Analisi completata.")
                 st.dataframe(st.session_state.df_processed)
-            except Exception as e:
-                st.error(f"Errore Sentiment: {e}")
+            except Exception as e: st.error(f"Errore: {e}")
 
     if col2.button("Top Words"):
         if st.session_state.df_processed is not None:
             st.session_state.report_words = run_top_words(st.session_state.df_processed, colonna_target)
             st.table(st.session_state.report_words)
-        else:
-            st.error("Esegui prima la Sentiment Analysis.")
+        else: st.error("Esegui Sentiment prima.")
 
     if col3.button("KeyBERT"):
-        with st.spinner("Estrazione concetti..."):
-            try:
-                st.session_state.report_keybert = run_keybert(df_input, colonna_target)
-                st.dataframe(st.session_state.report_keybert)
-            except Exception as e:
-                st.error(f"Errore KeyBERT: {e}")
+        with st.spinner("Estrazione..."):
+            st.session_state.report_keybert = run_keybert(df_input, colonna_target)
+            st.dataframe(st.session_state.report_keybert)
 
-    if col4.button("Macro-Temi LDA"):
-        with st.spinner("Clustering dei temi..."):
+    if col4.button("Temi LDA"):
+        with st.spinner("LDA in corso..."):
+            st.session_state.report_topics = run_topic_modeling(df_input, colonna_target)
+            st.table(st.session_state.report_topics)
+
+    if col5.button("Temi BERT"):
+        with st.spinner("Analisi Semantica (BERTopic style)..."):
             try:
-                st.session_state.report_topics = run_topic_modeling(df_input, colonna_target)
-                st.table(st.session_state.report_topics)
-            except Exception as e:
-                st.error(f"Errore Topic Modeling: {e}")
+                st.session_state.report_semantic = run_semantic_clustering(df_input, colonna_target)
+                st.table(st.session_state.report_semantic)
+            except Exception as e: st.error(f"Errore Clustering: {e}")
 
     st.divider()
     st.subheader("Summarization Intelligente")
@@ -186,18 +226,13 @@ if uploaded_file:
             with st.spinner("Generazione report..."):
                 try:
                     st.session_state.riassunto_ai = genera_riassunto_con_groq(testi_puliti, prompt_user)
-                    st.info("### Report Generato")
                     st.markdown(st.session_state.riassunto_ai)
-                except Exception as e:
-                    st.error(f"Errore Groq: {e}")
-        else:
-            st.warning("Nessun testo valido trovato.")
+                except Exception as e: st.error(f"Errore Groq: {e}")
 
     # --- SEZIONE DOWNLOAD ---
     if st.session_state.df_processed is not None or st.session_state.riassunto_ai is not None:
         st.divider()
         st.subheader("Area Download")
-        
         output_excel = io.BytesIO()
         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
             if st.session_state.df_processed is not None:
@@ -205,21 +240,10 @@ if uploaded_file:
             if st.session_state.report_words is not None:
                 st.session_state.report_words.to_excel(writer, sheet_name='Top Words', index=False)
             if st.session_state.report_keybert is not None:
-                st.session_state.report_keybert.to_excel(writer, sheet_name='Concetti KeyBERT', index=False)
+                st.session_state.report_keybert.to_excel(writer, sheet_name='KeyBERT', index=False)
             if st.session_state.report_topics is not None:
-                st.session_state.report_topics.to_excel(writer, sheet_name='Macro Temi', index=False)
+                st.session_state.report_topics.to_excel(writer, sheet_name='Temi LDA', index=False)
+            if st.session_state.report_semantic is not None:
+                st.session_state.report_semantic.to_excel(writer, sheet_name='Temi Semantici BERT', index=False)
         
-        st.download_button(
-            label="Scarica Report Excel Completo",
-            data=output_excel.getvalue(),
-            file_name="report_analisi.xlsx",
-            mime="application/vnd.ms-excel"
-        )
-
-        if st.session_state.riassunto_ai:
-            st.download_button(
-                label="Scarica Riassunto AI (.txt)",
-                data=st.session_state.riassunto_ai,
-                file_name="riassunto.txt",
-                mime="text/plain"
-            )
+        st.download_button(label="Scarica Excel Completo", data=output_excel.getvalue(), file_name="report.xlsx")
