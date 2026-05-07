@@ -41,7 +41,6 @@ else:
 # --- FUNZIONI DI ANALISI ---
 
 def pulisci_lista_testi(df, column):
-    """Assicura che i dati siano stringhe valide per i modelli"""
     testi_puliti = df[column].dropna().astype(str).tolist()
     testi_puliti = [t.strip() for t in testi_puliti if len(t.strip()) > 0]
     return testi_puliti
@@ -90,20 +89,29 @@ def run_keybert(df, column):
 def run_topic_modeling(df, column, n_topics=5):
     testi = pulisci_lista_testi(df, column)
     if len(testi) < 10:
-        return pd.DataFrame([{"Avviso": "Dati insufficienti per il raggruppamento"}])
+        return pd.DataFrame([{"Avviso": "Dati insufficienti"}])
+    
     vectorizer = CountVectorizer(stop_words=list(stop_words), max_features=1000)
     data_vectorized = vectorizer.fit_transform(testi)
+    
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
-    lda.fit(data_vectorized)
+    lda_output = lda.fit_transform(data_vectorized)
+    
+    # Identificazione del topic prevalente per ogni frase
+    topic_assignments = lda_output.argmax(axis=1)
+    counts = Counter(topic_assignments)
+    
     words = vectorizer.get_feature_names_out()
     topic_data = []
     for i, topic in enumerate(lda.components_):
         top_words = [words[j] for j in topic.argsort()[-10:]]
         topic_data.append({
             "Macro-Tema": f"Gruppo {i+1}",
+            "Conteggio Frasi": counts.get(i, 0),
             "Parole Chiave": ", ".join(reversed(top_words))
         })
-    return pd.DataFrame(topic_data)
+    
+    return pd.DataFrame(topic_data).sort_values(by="Conteggio Frasi", ascending=False)
 
 def genera_riassunto_con_groq(lista_testi, istruzione_utente):
     corpo_testo = "\n- ".join(lista_testi[:300])
@@ -149,7 +157,8 @@ if uploaded_file:
         if st.session_state.df_processed is not None:
             st.session_state.report_words = run_top_words(st.session_state.df_processed, colonna_target)
             st.table(st.session_state.report_words)
-        else: st.error("Esegui prima la Sentiment Analysis.")
+        else:
+            st.error("Esegui prima la Sentiment Analysis.")
 
     if col3.button("KeyBERT"):
         with st.spinner("Estrazione concetti..."):
