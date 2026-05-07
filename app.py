@@ -91,7 +91,7 @@ def run_topic_modeling(df, column, n_topics=5):
     if len(testi) < 10:
         return pd.DataFrame([{"Avviso": "Dati insufficienti"}])
     
-    vectorizer = CountVectorizer(stop_words=list(stop_words), max_features=1000)
+    vectorizer = CountVectorizer(stop_words=list(stop_words), max_features=10000)
     data_vectorized = vectorizer.fit_transform(testi)
     
     lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
