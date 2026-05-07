@@ -8,6 +8,8 @@ from collections import Counter
 from nltk.corpus import stopwords
 import io
 from groq import Groq
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(page_title="Sentiment Analyzer AI", layout="wide")
@@ -37,6 +39,34 @@ else:
     st.stop()
 
 # --- FUNZIONI DI ANALISI ---
+
+def run_topic_modeling(df, column, n_topics=5):
+    testi = pulisci_lista_testi(df, column)
+    if len(testi) < 10:
+        return pd.DataFrame([{"Errore": "Troppi pochi dati per il clustering"}])
+
+    # Creazione della matrice delle parole
+    vectorizer = CountVectorizer(stop_words=list(stop_words), max_features=1000)
+    data_vectorized = vectorizer.fit_transform(testi)
+
+    # Applicazione LDA
+    lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
+    lda.fit(data_vectorized)
+
+    # Estrazione parole chiave per ogni topic
+    words = vectorizer.get_feature_names_out()
+    topic_data = []
+    
+    for i, topic in enumerate(lda.components_):
+        top_words = [words[j] for j in topic.argsort()[-10:]]
+        topic_data.append({
+            "Macro-Tema": f"Gruppo {i+1}",
+            "Parole Chiave": ", ".join(reversed(top_words))
+        })
+    
+    return pd.DataFrame(topic_data)
+
+
 
 def pulisci_lista_testi(df, column):
     """Assicura che i dati siano stringhe valide per i modelli"""
@@ -119,7 +149,7 @@ if uploaded_file:
     colonna_target = st.selectbox("Seleziona colonna testi", df_input.columns)
     st.session_state['colonna_target'] = colonna_target
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     if col1.button("Sentiment Analysis"):
         with st.spinner("Analisi in corso..."):
@@ -143,7 +173,13 @@ if uploaded_file:
                 st.dataframe(st.session_state.report_keybert)
             except Exception as e:
                 st.error(f"Errore KeyBERT: {e}")
-
+    if col4.button(" Macro-Temi"):
+    with st.spinner("Raggruppamento testi in corso..."):
+        try:
+            st.session_state.report_topics = run_topic_modeling(df_input, colonna_target)
+            st.table(st.session_state.report_topics)
+        except Exception as e:
+            st.error(f"Errore Topic Modeling: {e}")
     st.divider()
     st.subheader(" Summarization Intelligente")
     prompt_user = st.text_area("Istruzione per il riassunto", "Analizza queste risposte e riassumi i punti chiave:")
