@@ -168,7 +168,7 @@ if uploaded_file:
             except Exception as e:
                 st.error(f"Errore KeyBERT: {e}")
 
-    if col4.button("Macro-Temi"):
+    if col4.button("Macro-Temi LDA"):
         with st.spinner("Clustering dei temi..."):
             try:
                 st.session_state.report_topics = run_topic_modeling(df_input, colonna_target)
